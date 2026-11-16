@@ -718,7 +718,7 @@ textarea.json{width:100%;height:180px;background:#1a1a1a;color:#cfd8dc;border:1p
     try {
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 2500);
-      const r = await fetch("/api/health", { signal: ctl.signal, cache: "no-store" });
+      const r = await fetch("api/health", { signal: ctl.signal, cache: "no-store" });
       clearTimeout(timer);
       if (!r || !r.ok) { BACKEND_OK = false; return BACKEND_OK; }
       // 原应用自带离线 shim：/api/health 会回 {ok:true,node:"offline"}
@@ -1296,7 +1296,9 @@ textarea.json{width:100%;height:180px;background:#1a1a1a;color:#cfd8dc;border:1p
   }
   async function handleApi(path, init) {
     const qi = path.indexOf("?");
-    const pathname = qi < 0 ? path : path.slice(0, qi);
+    let pathname = qi < 0 ? path : path.slice(0, qi);
+    // 剥掉部署子路径前缀，统一成 /api/... 或 /fixtures/...
+    if (API_BASE && pathname.indexOf(API_BASE) === 0) pathname = "/" + pathname.slice(API_BASE.length);
     const qs = new URLSearchParams(qi < 0 ? "" : path.slice(qi + 1));
     const bodyText = init && typeof init.body === "string" ? init.body : "";
     const bodyJson = (() => {
@@ -1364,9 +1366,25 @@ textarea.json{width:100%;height:180px;background:#1a1a1a;color:#cfd8dc;border:1p
     }
     return jsonResp({ ok: false, error: "\u79BB\u7EBF\u7248\u6CA1\u6709\u8FD9\u4E2A\u63A5\u53E3\uFF1A" + pathname }, 404);
   }
+  // Pages 部署在子路径（如 /shiyuan/）时，绝对路径 /api/xxx 会打到站点根，
+  // 因此统一用「以 api/ 或 fixtures/ 结尾」的相对匹配，兼容根路径与子路径两种部署。
+  var API_BASE = (() => {
+    try {
+      var b = location.pathname.replace(/[^/]*$/, "");
+      return b;   // 例：https://u.github.io/shiyuan/ → "/shiyuan/"
+    } catch (e) {
+      return "";
+    }
+  })();
+  function apiUrl(p) {
+    var s = String(p || "");
+    if (s.charAt(0) === "/") return s;
+    return API_BASE + s;
+  }
   window.fetch = async function rpOfflineFetch(input, init) {
-    const p = typeof input === "string" ? input : input && input.url || "";
-    if (p.startsWith("/api/") || p.startsWith("/fixtures/")) return handleApi(p, init);
+    const p0 = typeof input === "string" ? input : input && input.url || "";
+    const p = p0.startsWith("/") ? p0 : apiUrl(p0);
+    if (p.indexOf("/api/") >= 0 || p.indexOf("/fixtures/") >= 0) return handleApi(p, init);
     if (nativeFetch) return nativeFetch(input, init);
     return Promise.reject(new Error("\u79BB\u7EBF\u73AF\u5883\u4E0D\u652F\u6301\u8BE5\u7F51\u7EDC\u8BF7\u6C42"));
   };
@@ -4984,7 +5002,7 @@ ${parts.join("\n\n")}
     try {
       const cacheKey = url + "|" + S.fetchMode + (raw ? "|R" : "") + (opts.method === "POST" ? "|P:" + (opts.body || "") : "");
       const cached = S.cache.get(cacheKey);
-      const q = `/api/fetch?url=${encodeURIComponent(url)}&mode=${S.fetchMode}${raw ? "&raw=1" : ""}` + (opts.method === "POST" ? `&method=POST&body=${encodeURIComponent(opts.body || "")}` : "");
+      const q = `api/fetch?url=${encodeURIComponent(url)}&mode=${S.fetchMode}${raw ? "&raw=1" : ""}` + (opts.method === "POST" ? `&method=POST&body=${encodeURIComponent(opts.body || "")}` : "");
       const r = cached || await fetch(q).then((x) => x.json());
       if (!r.ok) throw new Error(r.error || "\u6293\u53D6\u5931\u8D25");
       S.cache.set(cacheKey, r);
@@ -5773,7 +5791,7 @@ ${parts.join("\n\n")}
     updateDbgStat();
     if (!quiet) dbgLog(`\u6B63\u5728\u8FDE\u63A5 http://${lgTarget()}\uFF08\u8C03\u8BD5\u53E3 ${lgWsTarget()}\uFF09\u2026`, "info");
     try {
-      const r = await lgFetch("/api/legado/probe", { host: S.lg.host, port: S.lg.port, wsPort: S.lg.wsPort });
+      const r = await lgFetch("api/legado/probe", { host: S.lg.host, port: S.lg.port, wsPort: S.lg.wsPort });
       if (!r.httpOk || r.ok === false) throw new Error(r.error || "\u8FDE\u63A5\u5931\u8D25");
       Object.assign(d, {
         status: "ready",
@@ -5841,7 +5859,7 @@ ${parts.join("\n\n")}
     }
     dbgLog(`\u63A8\u9001${dbgTypeName(type)}\u300C${name}\u300D\u2192 ${url}`, "info");
     try {
-      const r = await lgFetch("/api/legado/push", {
+      const r = await lgFetch("api/legado/push", {
         host: S.lg.host,
         port: S.lg.port,
         type,
@@ -5892,7 +5910,7 @@ ${parts.join("\n\n")}
       if (!String(d.key).trim()) d.key = (name || "\u6D4B\u8BD5").slice(0, 24);
       const keyInput = $("dKey");
       if (keyInput) keyInput.value = d.key;
-      const r = await lgFetch("/api/legado/debug/start", {
+      const r = await lgFetch("api/legado/debug/start", {
         host: S.lg.host,
         port: S.lg.port,
         wsPort: S.lg.wsPort,
@@ -5936,7 +5954,7 @@ ${parts.join("\n\n")}
     const sid = d.sid;
     if (!sid) return;
     try {
-      const r = await lgFetch(`/api/legado/debug/poll?sid=${encodeURIComponent(sid)}&cursor=${d.cursor}`);
+      const r = await lgFetch(`api/legado/debug/poll?sid=${encodeURIComponent(sid)}&cursor=${d.cursor}`);
       (r.lines || []).forEach((l) => {
         dbgLog(l.m, l.k);
         d.allText += String(l.m || "") + "\n";
@@ -5965,7 +5983,7 @@ ${parts.join("\n\n")}
     S.dbg.sid = "";
     if (sid) {
       try {
-        await lgFetch("/api/legado/debug/stop", { sid });
+        await lgFetch("api/legado/debug/stop", { sid });
       } catch {
       }
     }
@@ -6049,7 +6067,7 @@ ${parts.join("\n\n")}
     m.loading = true;
     renderDebug();
     try {
-      const r = await lgFetch("/api/legado/sources", {
+      const r = await lgFetch("api/legado/sources", {
         host: S.lg.host,
         port: S.lg.port,
         wsPort: S.lg.wsPort,
@@ -6132,7 +6150,7 @@ ${parts.join("\n\n")}
     const m = S.mgr;
     toast("\u6B63\u5728\u4FDD\u5B58\u5230\u9605\u8BFB App\u2026");
     try {
-      const r = await lgFetch("/api/legado/source", {
+      const r = await lgFetch("api/legado/source", {
         host: S.lg.host,
         port: S.lg.port,
         wsPort: S.lg.wsPort,
@@ -6150,7 +6168,7 @@ ${parts.join("\n\n")}
     const m = S.mgr;
     toast("\u6B63\u5728\u5220\u9664\u2026");
     try {
-      const r = await lgFetch("/api/legado/deleteSource", {
+      const r = await lgFetch("api/legado/deleteSource", {
         host: S.lg.host,
         port: S.lg.port,
         wsPort: S.lg.wsPort,
@@ -6588,7 +6606,7 @@ ${parts.join("\n\n")}
   }
   async function validateJSON(json) {
     try {
-      const r = await fetch("/api/validate", {
+      const r = await fetch("api/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ json, type: S.mode === "book" ? "book" : "rss" })
@@ -7428,7 +7446,7 @@ ${parts.join("\n\n")}
   });
   async function refreshProjects() {
     try {
-      const r = await fetch("/api/projects").then((x) => x.json());
+      const r = await fetch("api/projects").then((x) => x.json());
       const sel = $("projSel");
       if (sel) sel.innerHTML = '<option value="">\u52A0\u8F7D\u5DE5\u7A0B\u2026</option>' + (r.projects || []).map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
     } catch {
@@ -7441,7 +7459,7 @@ ${parts.join("\n\n")}
       return;
     }
     try {
-      const r = await fetch("/api/projects", {
+      const r = await fetch("api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, data: { mode: S.mode, rules: S.rules, homeUrl: S.homeUrl, kit: S.kit } })
@@ -7455,7 +7473,7 @@ ${parts.join("\n\n")}
   }
   async function loadProject(name) {
     try {
-      const r = await fetch("/api/projects/" + encodeURIComponent(name)).then((x) => x.json());
+      const r = await fetch("api/projects/" + encodeURIComponent(name)).then((x) => x.json());
       const d = r.data || {};
       if (d.rules) {
         S.rules = d.rules;
