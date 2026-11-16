@@ -1,5 +1,9 @@
 node_modules/
 screenshots/
 verify.mjs
-.DS_Store
+verify-live.mjs
+check-auth.sh
+t.mjs
 deploy.sh
+proxy/*.pem
+.DS_Store
