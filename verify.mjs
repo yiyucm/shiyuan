@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 const OUT = '/root/workspace/shiyuan-site/screenshots';
 fs.mkdirSync(OUT, { recursive: true });
-const EXE = '/root/.cache/ms-playwright/chromium-1255/chrome-linux-arm64/chrome';
+const EXE = '/root/.cache/ms-playwright/chromium_headless_shell-1255/chrome-headless-shell-linux-arm64/chrome-headless-shell';
 const BASE = process.env.BASE || 'http://127.0.0.1:8901';
 
 const shot = async (p, n, full = true) => {
