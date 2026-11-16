@@ -706,8 +706,9 @@ textarea.json{width:100%;height:180px;background:#1a1a1a;color:#cfd8dc;border:1p
   var PROJECTS_KEY = "rp.offline.projects";
   var IS_LOCAL_SERVICE = /^(https?:)$/.test(location.protocol) && /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(location.host);
   // GitHub Pages 等静态部署：没有本地后端 → /api/* 不可用，自动降级为「直出 + 离线示例」
-  var IS_STATIC_DEPLOY = !IS_LOCAL_SERVICE &&
-    !/(^|\.)github\.io$|(^|\.)netlify\.app$|(^|\.)vercel\.app$|(^|\.)pages\.dev$/.test(location.hostname);
+  // 静态托管平台（GitHub Pages / Netlify / Vercel / Cloudflare Pages）→ 没有本地后端
+  var IS_STATIC_HOST = /(^|\.)github\.io$|(^|\.)githubusercontent\.com$|(^|\.)netlify\.app$|(^|\.)vercel\.app$|(^|\.)pages\.dev$|(^|\.)workers\.dev$/.test(location.hostname);
+  var IS_STATIC_DEPLOY = !IS_LOCAL_SERVICE && (IS_STATIC_HOST || !/^(https?:)$/.test(location.protocol) || location.protocol === "file:");
   try {
     if (new URLSearchParams(location.search).get("static") === "1") IS_STATIC_DEPLOY = true;
   } catch (e) { }
@@ -725,7 +726,6 @@ textarea.json{width:100%;height:180px;background:#1a1a1a;color:#cfd8dc;border:1p
       // node!=="offline" 才说明真的有本地后端
       let j = null;
       try { j = await r.json(); } catch (e) { }
-      console.log("[probe] j=", JSON.stringify(j), " -> BACKEND_OK=", !(j && j.node === "offline"));
       BACKEND_OK = !(j && j.node === "offline");
     } catch (e) {
       BACKEND_OK = false;
