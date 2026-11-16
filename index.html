@@ -704,6 +704,20 @@ textarea.json{width:100%;height:180px;background:#1a1a1a;color:#cfd8dc;border:1p
   var nativeFetch = typeof window.fetch === "function" ? window.fetch.bind(window) : null;
   var UA = "Mozilla/5.0 (Linux; Android 12; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36";
   var PROJECTS_KEY = "rp.offline.projects";
+  var PROXY_KEY = "rp.fetch.proxy";      // 用户配置的云端抓取代理地址
+  function getProxyBase() {
+    try {
+      return (localStorage.getItem(PROXY_KEY) || "").replace(/\/+$/, "");
+    } catch (e) {
+      return "";
+    }
+  }
+  function setProxyBase(v) {
+    try {
+      if (v) localStorage.setItem(PROXY_KEY, String(v).replace(/\/+$/, ""));
+      else localStorage.removeItem(PROXY_KEY);
+    } catch (e) { }
+  }
   var IS_LOCAL_SERVICE = /^(https?:)$/.test(location.protocol) && /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(location.host);
   // GitHub Pages 等静态部署：没有本地后端 → /api/* 不可用，自动降级为「直出 + 离线示例」
   // 静态托管平台（GitHub Pages / Netlify / Vercel / Cloudflare Pages）→ 没有本地后端
@@ -783,6 +797,24 @@ textarea.json{width:100%;height:180px;background:#1a1a1a;color:#cfd8dc;border:1p
   async function netFetch(target, isPost, body) {
     const q = "/__net?url=" + encodeURIComponent(target) + (isPost ? "&method=POST&body=" + encodeURIComponent(body || "") : "");
     let reason = "";
+    // 云端抓取代理（Pages 部署时用；本地 APK 有本机服务，不需要）
+    const proxy = getProxyBase();
+    if (proxy) {
+      try {
+        const r = await nativeFetch(proxy + q, { method: "GET" });
+        const j = await r.json();
+        if (j && j.ok === false) {
+          const err = new Error(j.error || "\u6293\u53D6\u5931\u8D25");
+          err.__rpNetError = true;
+          throw err;
+        }
+        if (j && typeof j.html === "string") return j;
+        reason = "\u4EE3\u7406\u8FD4\u56DE\u683C\u5F0F\u5F02\u5E38";
+      } catch (e) {
+        if (e && e.__rpNetError) throw e;
+        reason = "\u4EE3\u7406\u4E0D\u53EF\u7528\uFF1A" + String(e && e.message ? e.message : e);
+      }
+    }
     if (nativeFetch) {
       try {
         const r = await nativeFetch(q, { method: "GET" });
@@ -807,7 +839,10 @@ textarea.json{width:100%;height:180px;background:#1a1a1a;color:#cfd8dc;border:1p
         reason = String(e && e.message ? e.message : e);
       }
     }
-    throw new Error("\u672C\u673A\u6293\u53D6\u670D\u52A1\u6CA1\u542F\u52A8\uFF0C\u8BF7\u7528\u300C\u62FE\u6E90\u300DAPK \u6253\u5F00\u672C\u9875\uFF0C\u6216\u5728\u7535\u8111\u4E0A\u6267\u884C npm start \u540E\u8BBF\u95EE http://127.0.0.1:8787\u3002" + (reason ? "\uFF08" + reason.slice(0, 70) + "\uFF09" : ""));
+    const hint = getProxyBase()
+      ? "\u4EE3\u7406\u6293\u53D6\u5931\u8D25\uFF1A\u8BF7\u68C0\u67E5\u300C\u8BBE\u7F6E \u2192 \u6293\u53D6\u4EE3\u7406\u300D\u91CC\u7684\u5730\u5740\u662F\u5426\u53EF\u7528\u3002"
+      : "\u6CA1\u6709\u672C\u673A\u6293\u53D6\u670D\u52A1\uFF1A\u8BF7\u7528\u300C\u62FE\u6E90\u300DAPK \u6253\u5F00\u672C\u9875\uFF0C\u6216\u5728\u8BBE\u7F6E\u91CC\u914D\u7F6E\u4E91\u7AEF\u6293\u53D6\u4EE3\u7406\u3002";
+    throw new Error(hint + (reason ? "\uFF08" + reason.slice(0, 70) + "\uFF09" : ""));
   }
   function rawResult(html, target, net) {
     const finalUrl = net && net.url || target;
@@ -5656,7 +5691,19 @@ ${parts.join("\n\n")}
         <option value="raw" ${pv === "raw" ? "selected" : ""}>\u539F\u6837</option>
         <option value="live" ${pv === "live" ? "selected" : ""}>\u76F4\u51FA</option>
       </select></div>
-    <h3>\u4EA4\u4E92\u6A21\u5F0F</h3>
+    <h3>\u6293\u53D6\u4EE3\u7406</h3>
+      <div class="srow" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div class="t"><b>\u4E91\u7AEF\u6293\u53D6\u4EE3\u7406\u5730\u5740</b><small>Pages \u90E8\u7F72\u6CA1\u6709\u672C\u673A\u670D\u52A1\uFF0C\u6293\u53D6\u4EFB\u610F\u7F51\u7AD9\u9700\u8981\u4E00\u4E2A CORS \u4EE3\u7406\uFF08Cloudflare Worker\uFF09\u3002\u7559\u7A7A\u5219\u53EA\u7528\u5185\u7F6E\u79BB\u7EBF\u793A\u4F8B\u4E0E\u300C\u76F4\u51FA\u300D\u6A21\u5F0F\u3002</small></div>
+        <div style="display:flex;gap:8px">
+          <input id="proxyInput" type="url" spellcheck="false" placeholder="https://xxx.workers.dev" value="${esc(getProxyBase())}"
+                 style="flex:1;background:#111;color:#c9d5e0;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font:13px/1.4 ui-monospace,Menlo,monospace;outline:none">
+          <button class="hbtn" id="proxyTest" style="flex:0 0 auto;padding:9px 14px;border-radius:8px;background:#2f3b42;border:1px solid #546e7a;color:#eceff1">\u6D4B\u8BD5</button>
+          <button class="hbtn" id="proxySave" style="flex:0 0 auto;padding:9px 16px;border-radius:8px;background:#2f3b42;border:1px solid #546e7a;color:#eceff1">\u4FDD\u5B58</button>
+        </div>
+        <div class="t"><small id="proxyState">\u5F53\u524D\uFF1A${getProxyBase() ? esc(getProxyBase()) : "\u672A\u914D\u7F6E"}</small></div>
+      </div>
+
+      <h3>\u4EA4\u4E92\u6A21\u5F0F</h3>
     <div class="srow"><div class="t"><b>\u4E0E\u7F51\u9875\u4EA4\u4E92</b><small>\u5F00 = \u6B63\u5E38\u6D4F\u89C8\uFF1B\u5173 = \u70B9\u51FB\u4EFB\u610F\u5143\u7D20\u7528\u4E8E\u62FE\u53D6\u89C4\u5219</small></div><div class="sw ${S.interact ? "on" : ""}" data-k="interact"></div></div>
     <div class="srow"><div class="t"><b>\u70B9\u51FB\u7F51\u9875\u94FE\u63A5</b><small>\u70B9\u94FE\u63A5\u65F6\u91CD\u65B0\u6293\u53D6\u8BE5\u7F51\u5740\uFF0C\u52A0\u5165\u6D4F\u89C8\u5386\u53F2</small></div><div class="sw ${S.allowJump ? "on" : ""}" data-k="allowJump"></div></div>
     <div class="srow"><div class="t"><b>\u542F\u7528 JavaScript</b><small>\u5BF9\u5E94\u8BA2\u9605\u6E90 WEB_VIEW\u300C\u542F\u7528 JavaScript\u300D</small></div><div class="sw ${S.enableJs ? "on" : ""}" data-k="enableJs"></div></div>
@@ -7256,6 +7303,31 @@ ${parts.join("\n\n")}
     }
   });
   inter.addEventListener("click", async (e) => {
+    if (e.target.closest("#proxySave")) {
+      const inp = $("proxyInput");
+      const v = (inp && inp.value || "").trim();
+      setProxyBase(v);
+      toast(v ? "\u5DF2\u4FDD\u5B58\u6293\u53D6\u4EE3\u7406\u5730\u5740" : "\u5DF2\u6E05\u9664\u6293\u53D6\u4EE3\u7406");
+      renderInter();
+      return;
+    }
+    if (e.target.closest("#proxyTest")) {
+      const inp = $("proxyInput");
+      const v = (inp && inp.value || "").trim();
+      setProxyBase(v);
+      const st = $("proxyState");
+      if (st) st.textContent = "\u6D4B\u8BD5\u4E2D\u2026";
+      try {
+        const r = await nativeFetch(v.replace(/\/+$/, "") + "/__ping", { method: "GET" });
+        const j = await r.json();
+        if (st) st.textContent = j && j.ok ? "\u4EE3\u7406\u53EF\u7528\uFF1A" + v : "\u4EE3\u7406\u8FD4\u56DE\u5F02\u5E38";
+        toast(j && j.ok ? "\u4EE3\u7406\u6B63\u5E38" : "\u4EE3\u7406\u8FD4\u56DE\u5F02\u5E38");
+      } catch (err) {
+        if (st) st.textContent = "\u4EE3\u7406\u4E0D\u53EF\u7528\uFF1A" + String(err && err.message || err).slice(0, 60);
+        toast("\u4EE3\u7406\u4E0D\u53EF\u7528");
+      }
+      return;
+    }
     if (e.target.closest("#iBack")) {
       showView("web");
       toast("\u5DF2\u8FD4\u56DE\u7F51\u9875");
