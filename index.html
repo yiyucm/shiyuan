@@ -352,7 +352,7 @@ textarea.json{width:100%;height:180px;background:#1a1a1a;color:#cfd8dc;border:1p
   </div>
   <div class="deploybar" hidden id="deployBar">
     <b>GitHub Pages 版</b>
-    <span>无本地后端：抓取受浏览器跨域限制可能失败；「直出」可看真实网页，离线示例可完整体验拾取</span>
+    <span id="deployHint">无本地后端：抓取受浏览器跨域限制。可在「设置 → 抓取代理」填 Cloudflare Worker 地址；未配置时「直出」可看真实网页，离线示例可完整体验拾取</span>
   </div>
 
   <div class="banner" hidden id="banner">正在为 <b id="bannerField">—</b> 拾取 · <span id="bannerHint">请点击网页上的元素</span><button id="cancelPick">取消</button></div>
@@ -5022,7 +5022,8 @@ ${parts.join("\n\n")}
     const url = normalizeUrl(rawUrl);
     if (S.preview === "live") return openLive(url, opts);
     const raw = S.preview === "raw";
-    if (IS_STATIC_DEPLOY) {
+    if (IS_STATIC_DEPLOY && !getProxyBase()) {
+      // 静态部署且没配代理 → 抓不了，降级为「直出」
       const ok = await probeBackend();
       if (!ok) {
         showDeployBanner();
@@ -8248,12 +8249,23 @@ SELFTEST_RESULT:${JSON.stringify(result)}`;
       const ok = await probeBackend();
       if (!ok) {
         showDeployBanner();
-        try {
-          if (localStorage.getItem(PV_KEY) !== "live") localStorage.setItem(PV_KEY, "live");
-        } catch (e) { }
-        S.preview = "live";
-        renderLiveBar();
-        setNet("离线模式 \xB7 Pages");
+        const hasProxy = !!getProxyBase();
+        if (hasProxy) {
+          // 已配置云端抓取代理 → 保持「快照」模式，走代理抓取
+          try {
+            if (localStorage.getItem(PV_KEY) === "live") localStorage.setItem(PV_KEY, "snap");
+          } catch (e) { }
+          S.preview = "snap";
+          renderLiveBar();
+          setNet("Pages \xB7 云端代理");
+        } else {
+          try {
+            if (localStorage.getItem(PV_KEY) !== "live") localStorage.setItem(PV_KEY, "live");
+          } catch (e) { }
+          S.preview = "live";
+          renderLiveBar();
+          setNet("离线模式 \xB7 Pages");
+        }
       }
     }
     await refreshProjects();
