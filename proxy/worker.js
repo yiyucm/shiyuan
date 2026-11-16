@@ -129,7 +129,7 @@ export default {
         const m = head.match(/charset\s*=\s*["']?([\w\-]+)/i);
         charset = m ? m[1].toLowerCase() : "utf-8";
       }
-      const norm = /gb2312|gbk|gb18030/.test(charset) ? "gbk" : (/big5/.test(charset) ? "big5" : "utf-8");
+      let norm = /gb2312|gbk|gb18030/.test(charset) ? "gbk" : (/big5/.test(charset) ? "big5" : "utf-8");
       let html;
       try {
         html = new TextDecoder(norm, { fatal: false }).decode(buf);

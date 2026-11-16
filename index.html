@@ -718,6 +718,21 @@ textarea.json{width:100%;height:180px;background:#1a1a1a;color:#cfd8dc;border:1p
       else localStorage.removeItem(PROXY_KEY);
     } catch (e) { }
   }
+  // HTTPS 页面无法请求 http:// 代理（混合内容被浏览器拦截）
+  function proxyMixedContent(v) {
+    if (!v) return "";
+    try {
+      const u = new URL(v);
+      if (location.protocol === "https:" && u.protocol === "http:") {
+        return "页面是 HTTPS，代理必须是 https://（http:// 会被浏览器按混合内容拦截）";
+      }
+      const h = u.hostname;
+      if (h === "localhost" || h === "127.0.0.1" || h === "::1" || h.startsWith("192.168.") || h.startsWith("10.")) {
+        return "浏览器不允许 HTTPS 页面请求本机/局域网地址（PNA 保护），需要公网 HTTPS 代理";
+      }
+    } catch (e) { }
+    return "";
+  }
   var IS_LOCAL_SERVICE = /^(https?:)$/.test(location.protocol) && /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(location.host);
   // GitHub Pages 等静态部署：没有本地后端 → /api/* 不可用，自动降级为「直出 + 离线示例」
   // 静态托管平台（GitHub Pages / Netlify / Vercel / Cloudflare Pages）→ 没有本地后端
@@ -5694,7 +5709,7 @@ ${parts.join("\n\n")}
       </select></div>
     <h3>\u6293\u53D6\u4EE3\u7406</h3>
       <div class="srow" style="flex-direction:column;align-items:stretch;gap:8px">
-        <div class="t"><b>\u4E91\u7AEF\u6293\u53D6\u4EE3\u7406\u5730\u5740</b><small>Pages \u90E8\u7F72\u6CA1\u6709\u672C\u673A\u670D\u52A1\uFF0C\u6293\u53D6\u4EFB\u610F\u7F51\u7AD9\u9700\u8981\u4E00\u4E2A CORS \u4EE3\u7406\uFF08Cloudflare Worker\uFF09\u3002\u7559\u7A7A\u5219\u53EA\u7528\u5185\u7F6E\u79BB\u7EBF\u793A\u4F8B\u4E0E\u300C\u76F4\u51FA\u300D\u6A21\u5F0F\u3002</small></div>
+        <div class="t"><b>\u4E91\u7AEF\u6293\u53D6\u4EE3\u7406\u5730\u5740</b><small>Pages \u90E8\u7F72\u6CA1\u6709\u672C\u673A\u670D\u52A1\uFF0C\u6293\u53D6\u4EFB\u610F\u7F51\u7AD9\u9700\u8981\u4E00\u4E2A CORS \u4EE3\u7406\u3002\u9875\u9762\u662F HTTPS \u65F6\u4EE3\u7406\u4E5F\u5FC5\u987B\u662F https\u3002\u53EF\u7528\u672C\u4ED3\u7684 proxy/server.js\uFF08\u672C\u673A\uFF09\u6216 Cloudflare Worker\u3002\u7559\u7A7A\u5219\u53EA\u7528\u5185\u7F6E\u79BB\u7EBF\u793A\u4F8B\u4E0E\u300C\u76F4\u51FA\u300D\u6A21\u5F0F\u3002</small></div>
         <div style="display:flex;gap:8px">
           <input id="proxyInput" type="url" spellcheck="false" placeholder="https://xxx.workers.dev" value="${esc(getProxyBase())}"
                  style="flex:1;background:#111;color:#c9d5e0;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font:13px/1.4 ui-monospace,Menlo,monospace;outline:none">
@@ -7307,6 +7322,11 @@ ${parts.join("\n\n")}
     if (e.target.closest("#proxySave")) {
       const inp = $("proxyInput");
       const v = (inp && inp.value || "").trim();
+      const mixed = proxyMixedContent(v);
+      if (mixed) {
+        toast(mixed);
+        return;
+      }
       setProxyBase(v);
       toast(v ? "\u5DF2\u4FDD\u5B58\u6293\u53D6\u4EE3\u7406\u5730\u5740" : "\u5DF2\u6E05\u9664\u6293\u53D6\u4EE3\u7406");
       renderInter();
@@ -7315,8 +7335,14 @@ ${parts.join("\n\n")}
     if (e.target.closest("#proxyTest")) {
       const inp = $("proxyInput");
       const v = (inp && inp.value || "").trim();
-      setProxyBase(v);
       const st = $("proxyState");
+      const mixed = proxyMixedContent(v);
+      if (mixed) {
+        if (st) st.textContent = mixed;
+        toast(mixed);
+        return;
+      }
+      setProxyBase(v);
       if (st) st.textContent = "\u6D4B\u8BD5\u4E2D\u2026";
       try {
         const r = await nativeFetch(v.replace(/\/+$/, "") + "/__ping", { method: "GET" });

@@ -19,6 +19,23 @@
 | 离线示例 | 内置 tags / list / post 三个示例页，无后端也能体验完整拾取流程 |
 | 导入导出 | 粘贴 / 复制 / 导出 Legado 标准 JSON |
 
+## 网页抓取需要代理
+
+GitHub Pages 是静态托管，浏览器直连目标站会被 CORS 拦截。要抓取任意网站，
+需要一个**公网 HTTPS 抓取代理**：
+
+```bash
+# Cloudflare Worker：粘贴 proxy/worker.js → Deploy → 得到 https://xxx.workers.dev
+# 自己的服务器：node proxy/server.js --host 0.0.0.0 --port 8787
+```
+
+然后在拾源页面 **设置 → 抓取代理** 填入地址 → 测试 → 保存。
+
+完整部署步骤见 [proxy/DEPLOY.md](proxy/DEPLOY.md)。
+
+> 未配置代理时：内置离线示例、规则生成与校验、工程存储、导入导出全部正常；
+> 只有「抓取任意网站」不可用（会提示，或自动降级为「直出」浏览模式）。
+
 ## 与 Android 版的差异
 
 Android 版带一个本地后端服务（127.0.0.1:8787），提供：
