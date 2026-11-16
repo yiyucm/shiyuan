@@ -2,3 +2,4 @@ node_modules/
 screenshots/
 verify.mjs
 .DS_Store
+deploy.sh
