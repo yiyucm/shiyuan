@@ -725,6 +725,7 @@ textarea.json{width:100%;height:180px;background:#1a1a1a;color:#cfd8dc;border:1p
       // node!=="offline" 才说明真的有本地后端
       let j = null;
       try { j = await r.json(); } catch (e) { }
+      console.log("[probe] j=", JSON.stringify(j), " -> BACKEND_OK=", !(j && j.node === "offline"));
       BACKEND_OK = !(j && j.node === "offline");
     } catch (e) {
       BACKEND_OK = false;

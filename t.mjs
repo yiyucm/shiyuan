@@ -3,18 +3,12 @@ const b = await chromium.launch({executablePath:'/root/.cache/ms-playwright/chro
 const p = await (await b.newContext({viewport:{width:412,height:900}})).newPage();
 p.on('console', m=>console.log('C:', m.text().slice(0,200)));
 await p.goto('https://yiyucm.github.io/shiyuan/');
-await p.waitForTimeout(3000);
-const r = await p.evaluate(async () => {
-  const resp = await fetch('/shiyuan/api/health').catch(e=>({status:'ERR '+e.message}));
-  let body=null;
-  try { body = await resp.text(); } catch(e){}
-  return {
-    host: location.hostname,
-    proto: location.protocol,
-    healthUrl: '/shiyuan/api/health',
-    status: resp.status,
-    body: (body||'').slice(0,150)
-  };
+await p.waitForTimeout(3500);
+const r = await p.evaluate(() => {
+  const el = document.getElementById('deployBar');
+  const cs = getComputedStyle(el);
+  return { hidden: el.hidden, display: cs.display, h: el.getBoundingClientRect().height,
+           net: document.getElementById('netState').textContent };
 });
-console.log(JSON.stringify(r,null,1));
+console.log(JSON.stringify(r));
 await b.close();
